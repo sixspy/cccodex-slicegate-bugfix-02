@@ -6,33 +6,44 @@
 <title>日切放行</title>
 <script src="/static/vue.global.prod.js"></script>
 <style>
-  :root{--bg:#0b1220;--panel:#121a2b;--line:#243049;--text:#e8eefc;--muted:#93a0b8;--ok:#3ddc97;--bad:#ff6b6b;--accent:#4cc9f0}
+  :root{--bg:#0b1220;--panel:#121a2b;--line:#243049;--text:#e8eefc;--muted:#93a0b8;--ok:#3ddc97;--bad:#ff6b6b;--warn:#ffcc66;--accent:#4cc9f0}
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
-  .top{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:1px solid var(--line);background:#0e1626}
+  .top{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:1px solid var(--line);background:#0e1626;flex-wrap:wrap}
   .brand{font-weight:700;letter-spacing:.08em;font-size:18px}
   .brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;letter-spacing:.02em;margin-top:2px}
-  .tabs{display:flex;gap:6px;flex:1}
+  .tabs{display:flex;gap:6px;flex:1;flex-wrap:wrap}
   .tabs button{background:transparent;border:1px solid transparent;color:var(--muted);padding:8px 12px;border-radius:999px;cursor:pointer}
   .tabs button.on{color:var(--text);border-color:var(--line);background:#18233a}
+  .tabs button .badge{display:inline-block;margin-left:6px;background:#3a2230;color:var(--warn);border-radius:999px;padding:0 6px;font-size:11px}
   .user{color:var(--muted);font-size:13px}
   .ghost{background:#18233a;border:1px solid var(--line);color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer}
+  .ghost:disabled{opacity:.45;cursor:not-allowed}
   main{padding:18px 20px 28px}
   .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
   h2{margin:0 0 10px;font-size:15px;color:#c9d4ea}
+  h2 small{color:var(--muted);font-weight:400;font-size:11px;margin-left:8px}
   table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   th{color:var(--muted);font-weight:600}
-  input,select{width:100%;background:#0b1220;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;margin:4px 0 10px}
+  input,select,textarea{width:100%;background:#0b1220;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;margin:4px 0 10px;font-family:inherit}
+  textarea{min-height:60px;resize:vertical}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .primary{background:var(--accent);color:#041018;border:0;padding:9px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+  .primary:disabled{opacity:.5;cursor:not-allowed}
+  .danger{background:#7a2330;color:#ffe9ec;border:1px solid #a63a48;padding:7px 10px;border-radius:8px;cursor:pointer}
   .mono{font-family:Consolas,"Courier New",monospace}
   .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#1b2a22;color:var(--ok)}
   .tag.bad{background:#2a1518;color:var(--bad)}
+  .tag.warn{background:#2b2412;color:var(--warn)}
   .login{max-width:400px;margin:12vh auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
-  .err{color:var(--bad);min-height:18px;font-size:13px}
-  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-  .kpi .panel{padding:12px}.kpi b{display:block;font-size:22px;margin-top:4px}
+  .err{color:var(--bad);min-height:18px;font-size:13px;white-space:pre-wrap}
+  .note{color:var(--muted);font-size:12px;line-height:1.6}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .kpi .panel{padding:12px;margin:0}.kpi b{display:block;font-size:22px;margin-top:4px}
+  .scroll{max-height:360px;overflow:auto}
+  .ok-text{color:var(--ok)} .bad-text{color:var(--bad)} .warn-text{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -54,13 +65,19 @@ createApp({
   setup(){
     const token=ref(localStorage.getItem('slicegate_token')||'');
     const user=ref(localStorage.getItem('slicegate_user')||'');
-    const username=ref('admin'), password=ref('123456'), err=ref(''), tab=ref(0), actionErr=ref('');
-    const slices=ref([]), releases=ref([]), watermarks=ref([]);
+    const username=ref('admin'), password=ref('123456'), err=ref(''), tab=ref(0), actionErr=ref(''), actionOk=ref('');
+    const slices=ref([]), releases=ref([]), watermarks=ref([]), conflicts=ref([]), attempts=ref([]), deviations=ref([]);
+    const policies=ref([]), partitions=ref([]), partDetail=ref(null);
     const form=ref({slice_no:'SL-2026-11-03-east',biz_date:'2026-11-03',partition_key:'east',row_count:1000,expected_count:1000});
     const releaseSliceId=ref(1), consumer=ref('ads_order');
-    const nav=['切片登记','完整度裁决','下游放行','消费水位'];
+    const policyForm=ref({biz_date:'2026-11-03',policy:'merge_review'});
+    const resolveForm=ref({conflict_id:null,action:'merge',note:''});
+    const partForm=ref({biz_date:'2026-11-03',partition_key:'east'});
+    const nav=['切片登记','完整度裁决','下游放行','消费水位','登记口径','冲突册','冲突处置','分区详情'];
     const completeCnt=computed(()=>slices.value.filter(s=>s.completeness==='完整').length);
     const openCnt=computed(()=>slices.value.filter(s=>s.release_status!=='已放行').length);
+    const pendingConflicts=computed(()=>conflicts.value.filter(c=>c.outcome==='待审'));
+    const pendingCnt=computed(()=>pendingConflicts.value.length);
     function auth(){return {Authorization:'Bearer '+token.value,'Content-Type':'application/json'};}
     async function login(){
       err.value='';
@@ -85,13 +102,82 @@ createApp({
       releases.value=Array.isArray(rel.items)?rel.items:[];
       const w=await loadJson('/api/watermarks'); if(w===null) return;
       watermarks.value=Array.isArray(w.items)?w.items:[];
+      const cf=await loadJson('/api/conflicts'); if(cf===null) return;
+      conflicts.value=Array.isArray(cf.items)?cf.items:[];
+      const at=await loadJson('/api/registration-attempts'); if(at===null) return;
+      attempts.value=Array.isArray(at.items)?at.items:[];
+      const dv=await loadJson('/api/deviations'); if(dv===null) return;
+      deviations.value=Array.isArray(dv.items)?dv.items:[];
+      const po=await loadJson('/api/policies'); if(po===null) return;
+      policies.value=Array.isArray(po.items)?po.items:[];
+      const pa=await loadJson('/api/partitions'); if(pa===null) return;
+      partitions.value=Array.isArray(pa.items)?pa.items:[];
       if(slices.value.length) releaseSliceId.value=slices.value[0].id;
+      if(pendingCnt.value && resolveForm.value.conflict_id===null) resolveForm.value.conflict_id=pendingConflicts.value[0].id;
     }
-    async function createSlice(){actionErr.value='';const r=await fetch('/api/slices',{method:'POST',headers:auth(),body:JSON.stringify(form.value)});const j=await r.json();if(!r.ok)actionErr.value=j.detail||'失败';await refresh();}
-    async function evaluate(id){await fetch('/api/slices/'+id+'/evaluate',{method:'POST',headers:auth()});await refresh();}
-    async function doRelease(){actionErr.value='';const r=await fetch('/api/slices/'+releaseSliceId.value+'/release',{method:'POST',headers:auth(),body:JSON.stringify({consumer:consumer.value})});const j=await r.json();if(!r.ok)actionErr.value=j.detail||'放行失败';await refresh();}
+    async function createSlice(){
+      actionErr.value='';actionOk.value='';
+      const r=await fetch('/api/slices',{method:'POST',headers:auth(),body:JSON.stringify(form.value)});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){
+        let msg=j.detail||'失败';
+        if(j.code==='slice_no_conflict'){
+          msg+='\n冲突编号 #'+j.conflict_id+'｜处置：'+(j.outcome==='待审'?'进入合并待审队列':'直接拒绝')+'｜旧行未覆盖';
+          if(j.contended) msg+='｜登记争用：后手登记未落成';
+        }
+        if(j.code==='policy_deviation') msg+='\n已记入登记口径偏离册 #'+j.deviation_id;
+        actionErr.value=msg;
+      } else {
+        actionOk.value='登记成功 #'+j.id+'（口径：'+j.policy_label+'）';
+      }
+      await refresh();
+    }
+    async function evaluate(id){
+      actionErr.value='';actionOk.value='';
+      const r=await fetch('/api/slices/'+id+'/evaluate',{method:'POST',headers:auth()});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) actionErr.value=j.detail||'裁决失败';
+      await refresh();
+    }
+    async function doRelease(){
+      actionErr.value='';actionOk.value='';
+      const r=await fetch('/api/slices/'+releaseSliceId.value+'/release',{method:'POST',headers:auth(),body:JSON.stringify({consumer:consumer.value})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) actionErr.value=j.detail||'放行失败';
+      else actionOk.value='放行成功，水位已随放行推进';
+      await refresh();
+    }
+    async function lockPolicy(){
+      actionErr.value='';actionOk.value='';
+      const r=await fetch('/api/policies',{method:'POST',headers:auth(),body:JSON.stringify(policyForm.value)});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) actionErr.value=(j.detail||'锁定失败')+(j.deviation_id?'\n已记入登记口径偏离册 #'+j.deviation_id:'');
+      else actionOk.value=(j.created?'已锁定 ':'口径已存在 ')+j.policy_label;
+      await refresh();
+    }
+    function pickConflict(c){resolveForm.value.conflict_id=c.id;resolveForm.value.note='';actionErr.value='';actionOk.value='';tab.value=6;}
+    async function resolveConflict(){
+      actionErr.value='';actionOk.value='';
+      const id=resolveForm.value.conflict_id;
+      if(!id){actionErr.value='请选择待审冲突';return;}
+      const r=await fetch('/api/conflicts/'+id+'/resolve',{method:'POST',headers:auth(),body:JSON.stringify({action:resolveForm.value.action,note:resolveForm.value.note})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) actionErr.value=(j.detail||'处置失败')+(j.deviation_id?'\n已记入登记口径偏离册 #'+j.deviation_id:'');
+      else if(j.outcome==='已合并') actionOk.value='已合并，生成新行 '+j.slice_no+'（'+j.row_count+'/'+j.expected_count+'，未放行，不推水位）';
+      else actionOk.value='已驳回冲突 #'+j.conflict_id;
+      await refresh();
+    }
+    async function loadPartition(){
+      actionErr.value='';actionOk.value='';partDetail.value=null;
+      const j=await loadJson('/api/partitions/'+encodeURIComponent(partForm.value.biz_date)+'/'+encodeURIComponent(partForm.value.partition_key));
+      if(j===null) return;
+      if(j.detail){actionErr.value=j.detail;return;}
+      partDetail.value=j;
+    }
     onMounted(()=>{if(token.value)refresh();});
-    return {token,user,username,password,err,tab,nav,slices,releases,watermarks,form,releaseSliceId,consumer,actionErr,completeCnt,openCnt,login,logout,createSlice,evaluate,doRelease};
+    return {token,user,username,password,err,tab,nav,slices,releases,watermarks,conflicts,attempts,deviations,policies,partitions,partDetail,
+      form,releaseSliceId,consumer,policyForm,resolveForm,partForm,actionErr,actionOk,completeCnt,openCnt,pendingCnt,pendingConflicts,
+      login,logout,refresh,createSlice,evaluate,doRelease,lockPolicy,pickConflict,resolveConflict,loadPartition};
   },
   template:`
   <div v-if="!token" class="login">
@@ -101,8 +187,12 @@ createApp({
   </div>
   <div v-if="token">
     <div class="top">
-      <div class="brand">日切放行<small>切片 → 完整度 → 放行 → 水位</small></div>
-      <div class="tabs"><button v-for="(n,i) in nav" :key="n" :class="{on:tab===i}" @click="tab=i">{{n}}</button></div>
+      <div class="brand">日切放行<small>切片登记 → 唯一冲突闸 → 完整度 → 放行 → 水位</small></div>
+      <div class="tabs">
+        <button v-for="(n,i) in nav" :key="n" :class="{on:tab===i}" @click="tab=i">{{n}}
+          <span v-if="i===6 && pendingCnt" class="badge">{{pendingCnt}}</span>
+        </button>
+      </div>
       <div class="user">{{user}}</div><button class="ghost" @click="logout">退出</button>
     </div>
     <main>
@@ -110,15 +200,20 @@ createApp({
         <div class="panel">切片总数<b class="mono">{{slices.length}}</b></div>
         <div class="panel">已完整<b class="mono">{{completeCnt}}</b></div>
         <div class="panel">未放行<b class="mono">{{openCnt}}</b></div>
+        <div class="panel">待审冲突<b class="mono" :class="{ 'bad-text': pendingCnt>0 }">{{pendingCnt}}</b></div>
       </div>
+      <div class="err">{{actionErr}}</div>
+      <div class="ok-text" style="min-height:18px;font-size:13px">{{actionOk}}</div>
+
       <div v-show="tab===0" class="grid">
         <div class="panel">
-          <h2>在途切片</h2>
-          <table><thead><tr><th>切片号</th><th>日/区</th><th>实收</th><th>完整度</th><th></th></tr></thead>
+          <h2>在途切片<small>登记列表与分区详情同库</small></h2>
+          <table><thead><tr><th>切片号</th><th>日/区</th><th>实收</th><th>完整度</th><th>冲突</th><th></th></tr></thead>
           <tbody><tr v-for="s in slices" :key="s.id">
             <td class="mono">{{s.slice_no}}</td><td>{{s.biz_date}} / {{s.partition_key}}</td>
             <td class="mono">{{s.row_count}}/{{s.expected_count}}</td>
             <td><span class="tag" :class="{bad:s.completeness!=='完整'}">{{s.completeness}}</span></td>
+            <td><span v-if="s.pending_conflicts" class="tag warn">待审 {{s.pending_conflicts}}</span><span v-else class="note">—</span></td>
             <td><button class="ghost" @click="evaluate(s.id)">重裁</button></td>
           </tr></tbody></table>
         </div>
@@ -128,24 +223,27 @@ createApp({
           <div class="row"><div><label>分区</label><input v-model="form.partition_key"/></div><div><label>实收</label><input type="number" v-model.number="form.row_count"/></div></div>
           <label>期望</label><input type="number" v-model.number="form.expected_count"/>
           <button class="primary" @click="createSlice">写入登记</button>
-          <div class="err">{{actionErr}}</div>
+          <div class="note" style="margin-top:10px">切片号唯一：撞号不会覆盖旧行。当天登记口径决定撞号去向——甲直接拒绝，乙进入合并待审队列（见“登记口径”页）。冲突时失败返回并提示冲突编号。</div>
         </div>
       </div>
+
       <div v-show="tab===1" class="panel">
         <h2>完整度裁决</h2>
-        <table><thead><tr><th>切片</th><th>缺口</th><th>结论</th><th>放行态</th></tr></thead>
+        <table><thead><tr><th>切片</th><th>缺口</th><th>结论</th><th>放行态</th><th>当日口径</th></tr></thead>
         <tbody><tr v-for="s in slices" :key="'c'+s.id">
           <td class="mono">{{s.slice_no}}</td><td class="mono">{{Math.max(s.expected_count-s.row_count,0)}}</td>
           <td>{{s.completeness}}</td><td>{{s.release_status}}</td>
+          <td><span v-if="s.day_policy" class="tag" :class="{warn:s.day_policy==='reject'}">{{s.day_policy==='reject'?'甲':'乙'}}</span><span v-else class="note">未锁定</span></td>
         </tr></tbody></table>
       </div>
+
       <div v-show="tab===2" class="grid">
         <div class="panel">
           <h2>申请放行</h2>
           <label>切片</label><select v-model.number="releaseSliceId"><option v-for="s in slices" :value="s.id">{{s.slice_no}}（{{s.completeness}}）</option></select>
           <label>下游</label><input v-model="consumer"/>
           <button class="primary" @click="doRelease">放行</button>
-          <div class="err">{{actionErr}}</div>
+          <div class="note" style="margin-top:8px">存在未处置登记冲突的切片禁止放行，也不推消费水位。</div>
         </div>
         <div class="panel">
           <h2>放行流水</h2>
@@ -153,10 +251,130 @@ createApp({
           <tbody><tr v-for="r in releases" :key="r.id"><td class="mono">{{r.slice_no}}</td><td>{{r.consumer}}</td><td>{{r.status}}</td><td class="mono">{{r.created_at}}</td></tr></tbody></table>
         </div>
       </div>
+
       <div v-show="tab===3" class="panel">
         <h2>消费水位</h2>
         <table><thead><tr><th>消费方</th><th>业务日</th><th>水位</th><th>来源切片</th></tr></thead>
         <tbody><tr v-for="w in watermarks" :key="w.id"><td>{{w.consumer}}</td><td>{{w.biz_date}}</td><td class="mono">{{w.watermark}}</td><td class="mono">{{w.source_slice}}</td></tr></tbody></table>
+      </div>
+
+      <div v-show="tab===4" class="grid">
+        <div class="panel">
+          <h2>锁定当日登记口径<small>当天不得更换</small></h2>
+          <label>业务日</label><input v-model="policyForm.biz_date"/>
+          <label>口径</label>
+          <select v-model="policyForm.policy">
+            <option value="merge_review">乙 · 冲突进合并待审队列（默认）</option>
+            <option value="reject">甲 · 冲突直接拒绝登记</option>
+          </select>
+          <button class="primary" @click="lockPolicy">锁定口径</button>
+          <div class="note" style="margin-top:8px">
+            正确性口径固定：row_count&gt;=expected_count 且 expected_count&gt;0 为完整。<br/>
+            合并规则固定：仅同业务日同分区可合并，新行取两报较大值，派生 &lt;原切片号&gt;-R&lt;序号&gt;，旧行不动，合并后未放行且不推水位。<br/>
+            当日已锁定后换口径、或按另一口径夹带登记，一律拒绝并记“登记口径偏了”。
+          </div>
+        </div>
+        <div class="panel">
+          <h2>已锁定口径</h2>
+          <table><thead><tr><th>业务日</th><th>口径</th><th>锁定人</th><th>来源</th></tr></thead>
+          <tbody><tr v-for="p in policies" :key="p.biz_date">
+            <td class="mono">{{p.biz_date}}</td>
+            <td><span class="tag" :class="{warn:p.policy==='reject'}">{{p.policy_label}}</span></td>
+            <td>{{p.locked_by}}</td><td class="note">{{p.source}}</td>
+          </tr></tbody></table>
+        </div>
+      </div>
+
+      <div v-show="tab===5" class="panel">
+        <h2>登记冲突册<small>同库可核：正式行与冲突条目一一对账</small></h2>
+        <div class="scroll">
+        <table><thead><tr><th>#</th><th>切片号</th><th>日/区</th><th>旧正式行</th><th>旧行数/完整度</th><th>本次行数/完整度</th><th>口径</th><th>状态</th><th>争用</th><th>冲突原因</th><th></th></tr></thead>
+        <tbody><tr v-for="c in conflicts" :key="c.id">
+          <td class="mono">{{c.id}}</td>
+          <td class="mono">{{c.slice_no}}</td>
+          <td>{{c.biz_date}} / {{c.partition_key}}</td>
+          <td class="mono">#{{c.existing_slice_id}}</td>
+          <td class="mono">{{c.existing_row_count}}/{{c.existing_expected_count}} · {{c.existing_completeness}}</td>
+          <td class="mono">{{c.incoming_row_count}}/{{c.incoming_expected_count}} · {{c.incoming_completeness}}</td>
+          <td><span class="tag" :class="{warn:c.policy==='reject'}">{{c.policy==='reject'?'甲':'乙'}}</span></td>
+          <td><span class="tag" :class="{warn:c.outcome==='待审',bad:c.outcome==='已拒绝'}">{{c.outcome}}</span></td>
+          <td><span v-if="c.contended" class="tag warn">争用</span><span v-else class="note">—</span></td>
+          <td class="note" style="max-width:320px">{{c.reason}}</td>
+          <td><button v-if="c.resolvable" class="ghost" @click="pickConflict(c)">处置</button></td>
+        </tr></tbody></table>
+        </div>
+      </div>
+
+      <div v-show="tab===6" class="grid">
+        <div class="panel">
+          <h2>冲突处置<small>人工确认后按合并规则生成新行，或驳回</small></h2>
+          <label>待审冲突</label>
+          <select v-model.number="resolveForm.conflict_id">
+            <option v-for="c in pendingConflicts" :key="c.id" :value="c.id">#{{c.id}} {{c.slice_no}}（{{c.biz_date}}/{{c.partition_key}}，本报 {{c.incoming_row_count}}/{{c.incoming_expected_count}}）</option>
+          </select>
+          <label>动作</label>
+          <select v-model="resolveForm.action">
+            <option value="merge">合并：生成派生新行（旧行不动）</option>
+            <option value="reject">驳回：不生成新行</option>
+          </select>
+          <label>处置备注</label><textarea v-model="resolveForm.note"></textarea>
+          <button class="primary" @click="resolveConflict" :disabled="!pendingCnt">提交处置</button>
+          <div class="note" style="margin-top:8px">合并与驳回都不覆盖旧正式行，都不推消费水位。已处置的冲突不在待审队列，再次处置会被拒绝并记偏离。</div>
+        </div>
+        <div class="panel">
+          <h2>登记尝试（含后手争用）</h2>
+          <div class="scroll">
+          <table><thead><tr><th>切片号</th><th>操作人</th><th>结果</th><th>争用</th><th>时间</th></tr></thead>
+          <tbody><tr v-for="a in attempts" :key="a.id">
+            <td class="mono">{{a.slice_no}}</td><td>{{a.operator}}</td>
+            <td><span class="tag" :class="{bad:a.outcome!=='ok',warn:a.outcome==='进行中'}">{{a.outcome}}</span></td>
+            <td><span v-if="a.contended" class="tag warn">是</span><span v-else class="note">否</span></td>
+            <td class="mono note">{{a.created_at}}</td>
+          </tr></tbody></table>
+          </div>
+          <h2 style="margin-top:12px">登记口径偏离册</h2>
+          <div class="scroll">
+          <table><thead><tr><th>#</th><th>类型</th><th>业务日</th><th>说明</th></tr></thead>
+          <tbody><tr v-for="d in deviations" :key="d.id">
+            <td class="mono">{{d.id}}</td><td>{{d.kind}}</td><td class="mono">{{d.biz_date||'—'}}</td>
+            <td class="note">{{d.detail}}</td>
+          </tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div v-show="tab===7" class="grid">
+        <div class="panel">
+          <h2>分区详情</h2>
+          <div class="row"><div><label>业务日</label><input v-model="partForm.biz_date"/></div><div><label>分区</label><input v-model="partForm.partition_key"/></div></div>
+          <button class="primary" @click="loadPartition">核对分区</button>
+          <div v-if="partDetail" style="margin-top:12px">
+            <div v-if="partDetail.policy" class="note">当日口径：{{partDetail.policy.policy_label}}</div>
+            <div class="err" v-if="!partDetail.reconciles">{{partDetail.reconcile_note}}</div>
+            <div class="ok-text" v-else>{{partDetail.reconcile_note}}</div>
+            <table style="margin-top:8px"><thead><tr><th>切片</th><th>行数</th><th>完整度</th><th>放行态</th></tr></thead>
+            <tbody><tr v-for="i in partDetail.items" :key="i.id">
+              <td class="mono">{{i.slice_no}}</td><td class="mono">{{i.row_count}}/{{i.expected_count}}</td>
+              <td>{{i.completeness}}</td><td>{{i.release_status}}</td>
+            </tr></tbody></table>
+            <h2 style="margin-top:12px">本分区冲突</h2>
+            <table><thead><tr><th>#</th><th>切片号</th><th>状态</th><th>旧行数</th></tr></thead>
+            <tbody><tr v-for="c in partDetail.conflicts" :key="c.id">
+              <td class="mono">{{c.id}}</td><td class="mono">{{c.slice_no}}</td>
+              <td>{{c.outcome}}</td><td class="mono">{{c.existing_row_count}}/{{c.existing_expected_count}}</td>
+            </tr></tbody></table>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>分区汇总<small>与登记列表、冲突队列同库对账</small></h2>
+          <table><thead><tr><th>日/区</th><th>切片</th><th>行数合计</th><th>待审冲突</th></tr></thead>
+          <tbody><tr v-for="p in partitions" :key="p.biz_date+'/'+p.partition_key">
+            <td class="mono">{{p.biz_date}} / {{p.partition_key}}</td>
+            <td class="mono">{{p.slice_count}}</td>
+            <td class="mono">{{p.row_total}}/{{p.expected_total}}</td>
+            <td><span v-if="p.pending_conflicts" class="tag warn">{{p.pending_conflicts}}</span><span v-else class="note">0</span></td>
+          </tr></tbody></table>
+        </div>
       </div>
     </main>
   </div>`
